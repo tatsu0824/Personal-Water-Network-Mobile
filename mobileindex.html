@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Personal Water Network</title>
+    <style>
+      #map {
+        height: 100%;
+      }
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #sidebar {
+        position: absolute;
+        top: 0%;
+        left: 82%;
+        width: 12%;
+        height: 100%;
+        border: 1px solid #666;
+        padding: 6px;
+        background-color: white;
+        font-family: Meriyo UI;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="sidebar"></div>
+    <script src="constants.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?language=ja&region=JP&key=AIzaSyA28dISjXwKZD8hKengt1iJzA3g57-tUz8&callback=initMap" async defer></script>
+    <script>
+      var map;
+      var marker = [];
+      var infoWindow = [];
+      var windowOpened;
+      var sheetNames = ['遠藤5322 森アトリエ前井戸', '遠藤5131-1 森の喫煙所井戸', '遠藤4351 SBC前井戸', '遠藤5172', '遠藤4644', '遠藤4511', '遠藤3663-4', '遠藤3628-5', '遠藤3600-13', '遠藤3590-8', '遠藤3590-17', '遠藤3606-3', '遠藤3606-8', '遠藤3606-11', '遠藤3213', '遠藤3219', '遠藤3537', '遠藤3534', '遠藤3228', '遠藤3224', '遠藤3197-4', '遠藤3092', '遠藤3007', '遠藤2922-1', '遠藤2780-13', '遠藤2711', '遠藤2664-3', '遠藤2494', '遠藤2525', '遠藤1485', '遠藤81', '遠藤1479-11', '遠藤98', '遠藤45', '遠藤1534'];
+      function parseData(data) {
+        var keys = data.values[0];
+        var markerData = [];
+        data.values.forEach(function(value, i) {
+          if (i > 0) {
+            var hash = {};
+            value.forEach(function(d, j) {
+              hash[keys[j]] = d;
+            });
+            markerData.push(hash);
+          }
+        });
+        return markerData;
+      }
+      function initMap() {
+        var target = document.getElementById('map');
+        var centerp = {lat: 35.3893811, lng: 139.4341696};
+        map = new google.maps.Map(target, {
+          center: centerp,
+          zoom: 16,
+          mapTypeId: 'satellite',
+          tilt: 45,
+        });
+        sheetNames.forEach(function(sheetName, index) {
+          var requestURL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${sheetName}?key=${API_KEY}`;
+          var request = new XMLHttpRequest();
+          request.open('GET', requestURL, true);
+          request.responseType = 'json';
+          request.onload = function() {
+            var data = this.response;
+            var markerData = parseData(data);
+            if (markerData.length > 0) {
+              setData(markerData, sheetName, index);  // 修正: setDataにシート名とインデックスを渡す
+            }
+          };
+          request.send();
+        });
+      }
+      function addMarker(i, data) {
+        var markerLatLng = new google.maps.LatLng({
+          lat: Number(data['緯度']),
+          lng: Number(data['経度'])
+        });
+        marker[i] = new google.maps.Marker({
+          position: markerLatLng,
+          map: map
+        });
+        var infoContent = '<div style="font-size:18px;font-weight:bold;margin-bottom:10px;">' + data['名称'] + '</div>' +
+                          '<div style="font-size:12px;font-weight:bold;margin-bottom:10px;">' + '観測日時：' + data['日付']+ ' ' +  data['時間'] + '</div>' +
+                          '<div style="font-size:12px;font-weight:bold;margin-bottom:10px;">' + '貯水深さ：' + data['井戸深度（cm）'] + ' cm' + '</div>' +
+                          '<div style="font-size:12px;font-weight:bold;margin-bottom:10px;">' + '合計流量：' + data['総流量（mL）'] + ' ml' + '</div>' +
+                          '<div style="font-size:12px;font-weight:bold;margin-bottom:10px;">' + '瞬間流量：' + data['瞬間流量（mL）'] + ' ml' + '</div>' +
+                          '<div style="font-size:12px;font-weight:bold;margin-bottom:10px;">' + '水質検査：' + '<a href="' + data['水質検査結果'] + '" target="_blank">'  + '水質検査結果を見る'  + '</a></div>';
+        infoWindow[i] = new google.maps.InfoWindow({
+          content: infoContent
+        });
+        marker[i].addListener('click', (function(markerCopy, infoWindow) {
+          return function() {
+            if (windowOpened) {
+              windowOpened.close();
+            }
+            infoWindow.open(map, markerCopy);
+            windowOpened = infoWindow;
+          };
+        })(marker[i], infoWindow[i]));
+        markerEvent(i);
+      }
+      function setData(markerData, sheetName, index){
+        var data = markerData.find(d => d['名称'] === sheetName);
+        if (data && data['緯度'] && data['経度']) {
+          addMarker(index, data);
+        }
+
+        var sidebar_html = document.getElementById("sidebar").innerHTML;
+        sidebar_html += `<a href="javascript:openWindow(${index})">${sheetName}</a><br />`;
+        document.getElementById("sidebar").innerHTML = sidebar_html;
+      }
+
+      function markerEvent(i) {
+        marker[i].addListener('click', function() {
+          openWindow(i);
+        });
+      }
+      function openWindow(index) {
+        if (windowOpened) {
+          windowOpened.close();
+        }
+        infoWindow[index].open(map, marker[index]);
+        windowOpened = infoWindow[index];
+       
+      }
+    </script>
+  </body>
+</html>
